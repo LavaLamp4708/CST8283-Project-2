@@ -1,11 +1,11 @@
       ******************************************************************
-      * Author:
-      * Date:
-      * Purpose:
+      * Author: Peter Stainforth
+      * Date: 2024-07-19
+      * Purpose: Project 2
       * Tectonics: cobc
       ******************************************************************
        IDENTIFICATION DIVISION.
-       PROGRAM-ID. YOUR-PROGRAM-NAME.
+       PROGRAM-ID. PROJECT-2.
        ENVIRONMENT DIVISION.
        INPUT-OUTPUT SECTION.
        FILE-CONTROL.
@@ -62,6 +62,8 @@
                10 JOIN-STOCKS-SUB PIC 99.
                10 JOIN-PORTFOLIO-SUB PIC 99.
 
+       01 PORTFOLIO-RECORDS-READ PIC 99.
+
        01 REPORT-LINES.
            05 REPORT-LINE OCCURS 20 TIMES.
              10 RPT-STOCK-NAME-S     PIC X(25).
@@ -99,19 +101,20 @@
                "   MARKET VALUE".
            05 FIELD6 PIC X(16) VALUE
                "      GAIN/LOSS ".
-       01 RECORDS-WRITTEN-LINE.
-           05 RECORDS-WRITTEN PIC X(20) VALUE "Records written: ".
+       01 RECORDS-READ-WRITTEN-LINE.
+           05 RECORDS-READ PIC X(25) VALUE "Portfolio records read: ".
+           05 PORTFOLIO-RECORDS-VALUE PIC ZZ.
+           05 RECORDS-WRITTEN PIC X(20) VALUE "   Records written: ".
            05 RECORDS-VALUE PIC ZZ.
 
        PROCEDURE DIVISION.
+      * Main procedure. Performs all paragraphs.
+       100-MAIN-PROCEDURE.
+           PERFORM 210-OPEN-FILES.
 
-       MAIN-PROCEDURE.
+           PERFORM 220-LOAD-WS.
 
-           PERFORM OPEN-FILES.
-
-           PERFORM LOAD-WS.
-
-           PERFORM INNER-JOIN
+           PERFORM 230-INNER-JOIN
            VARYING PORTFOLIO-SUB
            FROM 1 BY 1 UNTIL PORTFOLIO-SUB > 7
            AFTER STOCKS-SUB
@@ -119,52 +122,63 @@
 
            MOVE JOIN-SUB TO NUM-OF-MATCHES.
 
-           PERFORM FILL-REPORT-LINE
+           PERFORM 240-FILL-REPORT-LINE
            VARYING JOIN-SUB FROM 1 BY 1
            UNTIL JOIN-SUB > NUM-OF-MATCHES
            OR JOIN-SUB > 20.
 
-           PERFORM WRITE-TO-FILE.
+           PERFORM 250-WRITE-TO-FILE.
 
-           PERFORM DEBUG.
+           PERFORM 260-CLOSE-REPORT.
 
-           PERFORM CLOSE-ROUTINE.
+           PERFORM 270-OPEN-REPORT-AS-INPUT.
 
-       OPEN-FILES.
+           INITIALIZE WS-EOF.
+           PERFORM 280-DISPLAY-REPORT UNTIL WS-EOF=1.
+
+           PERFORM 290-CLOSE-ROUTINE.
+
+      *Opens all necessary files.
+       210-OPEN-FILES.
            OPEN INPUT STOCKS-IN.
            OPEN INPUT PORTFOLIO-IN.
            OPEN OUTPUT REPORT-OUT.
 
-       LOAD-WS.
+      *Loads tables in the working-storage section from all input files.
+       220-LOAD-WS.
            INITIALIZE WS-EOF.
 
-           PERFORM LOAD-STOCKS
+           PERFORM 310-LOAD-STOCKS
            VARYING STOCKS-SUB
            FROM 1 BY 1
            UNTIL STOCKS-SUB > 20 OR WS-EOF = 1.
 
            INITIALIZE WS-EOF.
 
-           PERFORM LOAD-PORTFOLIO
+           PERFORM 320-LOAD-PORTFOLIO
            VARYING PORTFOLIO-SUB
            FROM 1 BY 1
            UNTIL PORTFOLIO-SUB > 7 OR WS-EOF = 1.
 
-       LOAD-STOCKS.
+      *Loads table in the working-storage section from the STOCKS.txt file.
+       310-LOAD-STOCKS.
            READ STOCKS-IN
            AT END MOVE 1 TO WS-EOF
            NOT AT END
                MOVE STOCK TO WS-STOCKS-TABLE(STOCKS-SUB)
            END-READ.
 
-       LOAD-PORTFOLIO.
+      *Loads table in the working-storage section from the PORTFOLIO.txt file.
+       320-LOAD-PORTFOLIO.
            READ PORTFOLIO-IN
            AT END MOVE 1 TO WS-EOF
            NOT AT END
+               ADD 1 TO PORTFOLIO-RECORDS-READ
                MOVE PORTFOLIO TO WS-PORTFOLIO-TABLE(PORTFOLIO-SUB)
            END-READ.
 
-       INNER-JOIN.
+      *Loads a table pairing the subs of both input file tables where the stock symbols match.
+       230-INNER-JOIN.
            IF WS-S-STOCK-SYMBOL(STOCKS-SUB)
                = WS-P-STOCK-SYMBOL(PORTFOLIO-SUB)
                ADD 1 TO JOIN-SUB
@@ -172,7 +186,8 @@
                MOVE PORTFOLIO-SUB TO JOIN-PORTFOLIO-SUB(JOIN-SUB)
            END-IF.
 
-       FILL-REPORT-LINE.
+      *Fills report table with all necessary fields
+       240-FILL-REPORT-LINE.
            MOVE WS-STOCK-NAME-S(JOIN-STOCKS-SUB(JOIN-SUB))
            TO RPT-STOCK-NAME-S(JOIN-SUB).
 
@@ -185,81 +200,115 @@
            MOVE WS-CLOSING-PRICE-S(JOIN-STOCKS-SUB(JOIN-SUB))
            TO RPT-CLOSING-PRICE-S(JOIN-SUB).
 
-           PERFORM CALCULATE-ADJ-COST-BASE.
-           PERFORM CALCULATE-MARKET-VALUE.
-           PERFORM CALCULATE-TOTAL-GAIN-LOSS.
+           PERFORM 330-CALCULATE-ADJ-COST-BASE.
+           PERFORM 340-CALCULATE-MARKET-VALUE.
+           PERFORM 350-CALCULATE-TOTAL-GAIN-LOSS.
 
-       CALCULATE-ADJ-COST-BASE.
+      *Calculates adjusted cost base column for the stock report.
+       330-CALCULATE-ADJ-COST-BASE.
            MULTIPLY WS-AVG-COST-P(JOIN-PORTFOLIO-SUB(JOIN-SUB))
            BY WS-NUM-OF-SHARES-P(JOIN-PORTFOLIO-SUB(JOIN-SUB))
            GIVING CALC-ADJ-COST-BASE.
            MOVE CALC-ADJ-COST-BASE TO RPT-ADJ-COST-BASE(JOIN-SUB).
 
-       CALCULATE-MARKET-VALUE.
+      *Calculates market value column for the stock report.
+       340-CALCULATE-MARKET-VALUE.
            MULTIPLY WS-NUM-OF-SHARES-P(JOIN-PORTFOLIO-SUB(JOIN-SUB))
            BY WS-CLOSING-PRICE-S(JOIN-STOCKS-SUB(JOIN-SUB))
            GIVING CALC-MARKET-VALUE.
            MOVE CALC-MARKET-VALUE TO RPT-MARKET-VALUE(JOIN-SUB).
 
-       CALCULATE-TOTAL-GAIN-LOSS.
+      *Calculates total gain or loss of the stock for the column in the report.
+       350-CALCULATE-TOTAL-GAIN-LOSS.
            SUBTRACT CALC-ADJ-COST-BASE FROM CALC-MARKET-VALUE
            GIVING CALC-TOTAL-GAIN-LOSS.
            MOVE CALC-TOTAL-GAIN-LOSS TO RPT-TOTAL-GAIN-LOSS(JOIN-SUB).
 
-       DEBUG.
-           PERFORM VARYING STOCKS-SUB FROM 1 BY 1 UNTIL STOCKS-SUB > 20
-               DISPLAY WS-STOCKS-TABLE(STOCKS-SUB)
-           END-PERFORM.
+      *Writes REPORT.txt to file.
+       250-WRITE-TO-FILE.
+           PERFORM 360-WRITE-HEADER-TO-FILE.
 
-           DISPLAY SPACES.
-
-           PERFORM VARYING PORTFOLIO-SUB
-           FROM 1 BY 1 UNTIL PORTFOLIO-SUB > 7
-               DISPLAY WS-PORTFOLIO-TABLE(PORTFOLIO-SUB)
-           END-PERFORM.
-
-           INITIALIZE JOIN-SUB.
-
-           DISPLAY SPACES.
-           DISPLAY "PAIRS FOUND:".
-           DISPLAY "S  P".
-           PERFORM VARYING JOIN-SUB
+           PERFORM 370-WRITE-TABLE-DATA-TO-FILE
+           VARYING JOIN-SUB
            FROM 1 BY 1 UNTIL JOIN-SUB > 20
-           OR JOIN-SUB > NUM-OF-MATCHES
-               DISPLAY JOIN-STOCKS-SUB(JOIN-SUB) " "
-               JOIN-PORTFOLIO-SUB(JOIN-SUB)
-           END-PERFORM.
+           OR JOIN-SUB > NUM-OF-MATCHES.
 
-           DISPLAY SPACES.
-           DISPLAY HEADER.
-           DISPLAY SPACER.
-           PERFORM VARYING JOIN-SUB
-           FROM 1 BY 1 UNTIL JOIN-SUB > 20
-           OR JOIN-SUB > NUM-OF-MATCHES
-               DISPLAY REPORT-LINE(JOIN-SUB)
-           END-PERFORM.
+           PERFORM 380-WRITE-FOOTER-TO-FILE.
 
-       WRITE-TO-FILE.
+      *Writes header to the REPORT.txt file.
+       360-WRITE-HEADER-TO-FILE.
            WRITE REPORT-OUT-LINE FROM SPACER.
            WRITE REPORT-OUT-LINE FROM HEADER.
            WRITE REPORT-OUT-LINE FROM SPACER.
 
-           PERFORM VARYING JOIN-SUB
-           FROM 1 BY 1 UNTIL JOIN-SUB > 20
-           OR JOIN-SUB > NUM-OF-MATCHES
-               WRITE REPORT-OUT-LINE FROM REPORT-LINE(JOIN-SUB)
-           END-PERFORM.
+      *Writes table rows to the REPORT.txt file.
+       370-WRITE-TABLE-DATA-TO-FILE.
+           WRITE REPORT-OUT-LINE FROM REPORT-LINE(JOIN-SUB).
 
+      *Writes footer to the REPORT.txt file.
+       380-WRITE-FOOTER-TO-FILE.
            WRITE REPORT-OUT-LINE FROM SPACER
            BEFORE ADVANCING 2 LINE.
 
            MOVE NUM-OF-MATCHES TO RECORDS-VALUE.
-           WRITE REPORT-OUT-LINE FROM RECORDS-WRITTEN-LINE.
+           MOVE PORTFOLIO-RECORDS-READ TO PORTFOLIO-RECORDS-VALUE.
+           WRITE REPORT-OUT-LINE FROM RECORDS-READ-WRITTEN-LINE.
 
-       CLOSE-ROUTINE.
+      *Closes the REPORT.txt file so it may be opened in input mode.
+       260-CLOSE-REPORT.
+           CLOSE REPORT-OUT.
+
+      *Opens the REPORT.txt file in input mode.
+       270-OPEN-REPORT-AS-INPUT.
+           OPEN INPUT REPORT-OUT.
+
+      *Displays all data in the report file to console.
+       280-DISPLAY-REPORT.
+           READ REPORT-OUT
+           AT END MOVE 1 TO WS-EOF
+           NOT AT END DISPLAY REPORT-OUT-LINE
+           END-READ.
+
+      *Closes all files and stops the run.
+       290-CLOSE-ROUTINE.
            CLOSE STOCKS-IN.
            CLOSE PORTFOLIO-IN.
            CLOSE REPORT-OUT.
            STOP RUN.
 
-       END PROGRAM YOUR-PROGRAM-NAME.
+       END PROGRAM PROJECT-2.
+
+      *DEBUG.
+      *    PERFORM VARYING STOCKS-SUB FROM 1 BY 1 UNTIL STOCKS-SUB > 20
+      *        DISPLAY WS-STOCKS-TABLE(STOCKS-SUB)
+      *    END-PERFORM.
+
+      *    DISPLAY SPACES.
+
+      *    PERFORM VARYING PORTFOLIO-SUB
+      *    FROM 1 BY 1 UNTIL PORTFOLIO-SUB > 7
+      *        DISPLAY WS-PORTFOLIO-TABLE(PORTFOLIO-SUB)
+      *    END-PERFORM.
+
+      *    INITIALIZE JOIN-SUB.
+
+      *    DISPLAY SPACES.
+      *    DISPLAY "PAIRS FOUND:".
+      *    DISPLAY "P  S".
+      *    PERFORM VARYING JOIN-SUB
+      *    FROM 1 BY 1 UNTIL JOIN-SUB > 20
+      *    OR JOIN-SUB > NUM-OF-MATCHES
+      *        DISPLAY JOIN-PORTFOLIO-SUB(JOIN-SUB) " "
+      *        JOIN-STOCKS-SUB(JOIN-SUB)
+      *    END-PERFORM.
+
+      *    DISPLAY SPACES.
+      *    DISPLAY HEADER.
+      *    DISPLAY SPACER.
+      *    PERFORM VARYING JOIN-SUB
+      *    FROM 1 BY 1 UNTIL JOIN-SUB > 20
+      *    OR JOIN-SUB > NUM-OF-MATCHES
+      *        DISPLAY REPORT-LINE(JOIN-SUB)
+      *    END-PERFORM.
+
+      *    DISPLAY SPACES.
