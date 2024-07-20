@@ -120,8 +120,6 @@
            AFTER STOCKS-SUB
            FROM 1 BY 1 UNTIL STOCKS-SUB > 20.
 
-           MOVE JOIN-SUB TO NUM-OF-MATCHES.
-
            PERFORM 240-FILL-REPORT-LINE
            VARYING JOIN-SUB FROM 1 BY 1
            UNTIL JOIN-SUB > NUM-OF-MATCHES
@@ -181,9 +179,9 @@
        230-INNER-JOIN.
            IF WS-S-STOCK-SYMBOL(STOCKS-SUB)
                = WS-P-STOCK-SYMBOL(PORTFOLIO-SUB)
-               ADD 1 TO JOIN-SUB
-               MOVE STOCKS-SUB TO JOIN-STOCKS-SUB(JOIN-SUB)
-               MOVE PORTFOLIO-SUB TO JOIN-PORTFOLIO-SUB(JOIN-SUB)
+               ADD 1 TO NUM-OF-MATCHES
+               MOVE STOCKS-SUB TO JOIN-STOCKS-SUB(NUM-OF-MATCHES)
+               MOVE PORTFOLIO-SUB TO JOIN-PORTFOLIO-SUB(NUM-OF-MATCHES)
            END-IF.
 
       *Fills report table with all necessary fields
